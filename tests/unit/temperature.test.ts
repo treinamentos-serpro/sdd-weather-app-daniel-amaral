@@ -47,7 +47,14 @@ describe('temperature', () => {
     expect(formatTemperature(null, 'fahrenheit')).toBe('Indisponível');
   });
 
-  it.each([NaN, Infinity, -Infinity])('rejeita temperatura não finita %s', (value) => {
-    expect(() => formatTemperature(value, 'celsius')).toThrow(RangeError);
+  it.each([null, undefined, NaN, Infinity, -Infinity])(
+    'usa fallback indisponível para temperatura ausente ou não finita: %s',
+    (value) => {
+      expect(formatTemperature(value, 'celsius')).toBe('Indisponível');
+    },
+  );
+
+  it('preserva zero sem confundi-lo com campo ausente', () => {
+    expect(formatTemperature(0, 'celsius')).toBe('0,0 °C');
   });
 });

@@ -23,7 +23,7 @@ export default function UnitToggle({ unit, onChange }: UnitToggleProps) {
           type="button"
           aria-pressed={unit === value}
           onClick={() => onChange(value)}
-          className="min-h-11 min-w-11 rounded-lg px-4 py-2 font-semibold text-slate-200 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-400 focus-visible:ring-offset-2 focus-visible:ring-offset-night-900 aria-pressed:bg-accent-400 aria-pressed:text-night-900 aria-pressed:underline aria-pressed:underline-offset-4"
+          className="min-h-11 min-w-11 rounded-lg px-4 py-2 font-semibold text-slate-200 transition-colors hover:bg-white/10 active:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-400 focus-visible:ring-offset-2 focus-visible:ring-offset-night-900 aria-pressed:bg-accent-400 aria-pressed:text-night-900 aria-pressed:underline aria-pressed:underline-offset-4"
         >
           {label}
         </button>

@@ -29,7 +29,7 @@ export default function ErrorState({
         <button
           type="button"
           onClick={() => onRetry()}
-          className="mt-4 rounded-xl bg-accent-400 px-5 py-3 font-semibold text-night-900 hover:bg-accent-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-400 focus-visible:ring-offset-2 focus-visible:ring-offset-night-900"
+          className="mt-4 rounded-xl bg-accent-400 px-5 py-3 font-semibold text-night-900 transition-colors hover:bg-accent-500 active:bg-accent-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-400 focus-visible:ring-offset-2 focus-visible:ring-offset-night-900"
         >
           Tentar novamente
         </button>

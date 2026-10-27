@@ -3,6 +3,13 @@ import { formatTemperature } from '../lib/temperature';
 import { getWeatherCondition } from '../lib/weatherCodes';
 import type { ForecastDay, Unit } from '../types/weather';
 
+function formatPrecipitationProbability(value: number | null | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 100) {
+    return 'Indisponível';
+  }
+  return `${value} %`;
+}
+
 interface ForecastDayCardProps {
   day: ForecastDay;
   dayIndex: number;
@@ -34,11 +41,7 @@ export default function ForecastDayCard({ day, dayIndex, unit }: ForecastDayCard
         </div>
         <div>
           <dt className="text-slate-300">Probabilidade de precipitação</dt>
-          <dd>
-            {day.precipitationProbabilityMaxPercent === null
-              ? 'Indisponível'
-              : `${day.precipitationProbabilityMaxPercent} %`}
-          </dd>
+          <dd>{formatPrecipitationProbability(day.precipitationProbabilityMaxPercent)}</dd>
         </div>
       </dl>
     </article>

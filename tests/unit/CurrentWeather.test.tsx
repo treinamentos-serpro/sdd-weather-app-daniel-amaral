@@ -128,4 +128,28 @@ describe('CurrentWeather', () => {
     expect(screen.queryByText('Bahia, Brasil')).not.toBeInTheDocument();
     expect(screen.getByText('25,4 °C')).toBeVisible();
   });
+
+  it('não exibe NaN para métricas não finitas', () => {
+    const invalidCurrent: CurrentWeatherData = {
+      temperatureC: Number.NaN,
+      apparentTemperatureC: Number.POSITIVE_INFINITY,
+      relativeHumidityPercent: Number.NaN,
+      windSpeedKmh: Number.NaN,
+      precipitationMm: Number.NaN,
+      surfacePressureHpa: Number.NaN,
+      weatherCode: Number.NaN,
+    };
+    Object.defineProperty(invalidCurrent, 'windSpeedKmh', { value: undefined });
+
+    render(
+      <CurrentWeather city={city} current={invalidCurrent} unit="celsius" />,
+    );
+
+    expect(screen.getAllByText('Indisponível')).toHaveLength(6);
+    expect(screen.getByText('Sensação térmica: Indisponível')).toBeVisible();
+    expect(screen.getByText('Vento', { selector: 'dt' }).nextElementSibling).toHaveTextContent(
+      'Indisponível',
+    );
+    expect(screen.queryByText(/NaN|Infinity|undefined/)).not.toBeInTheDocument();
+  });
 });

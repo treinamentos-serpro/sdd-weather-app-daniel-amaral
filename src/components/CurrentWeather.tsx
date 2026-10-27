@@ -13,11 +13,8 @@ const metricFormatter = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 1,
 });
 
-function formatMetric(value: number | null, suffix: string): string {
-  if (value === null) return 'Indisponível';
-  if (!Number.isFinite(value)) {
-    throw new RangeError('A métrica deve ser um número finito ou null.');
-  }
+function formatMetric(value: number | null | undefined, suffix: string): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'Indisponível';
   return `${metricFormatter.format(value)} ${suffix}`;
 }
 

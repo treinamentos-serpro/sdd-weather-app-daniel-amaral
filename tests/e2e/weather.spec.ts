@@ -63,13 +63,113 @@ test('busca uma cidade, mostra a previsão e converte a temperatura para Fahrenh
 });
 
 test('mostra o estado vazio quando o geocoding não retorna results', async ({ page }) => {
-  await mockWeatherApis(page, {});
+  let forecastRequests = 0;
+  await page.route('https://geocoding-api.open-meteo.com/**', (route) =>
+    route.fulfill({ json: {} }),
+  );
+  await page.route('https://api.open-meteo.com/**', (route) => {
+    forecastRequests += 1;
+    return route.fulfill({ json: forecastResponse });
+  });
 
   await page.goto('/');
   await page.getByRole('searchbox', { name: 'Cidade' }).fill('Cidade inexistente');
   await page.getByRole('button', { name: 'Buscar', exact: true }).click();
 
   await expect(page.getByRole('heading', { name: 'Nenhuma cidade encontrada' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Previsão de 5 dias' })).toHaveCount(0);
+  expect(forecastRequests).toBe(0);
+});
+
+test('valida busca vazia ou composta somente por espaços sem consultar as APIs', async ({ page }) => {
+  let geocodingRequests = 0;
+  let forecastRequests = 0;
+  await page.route('https://geocoding-api.open-meteo.com/**', (route) => {
+    geocodingRequests += 1;
+    return route.fulfill({ json: { results: [city] } });
+  });
+  await page.route('https://api.open-meteo.com/**', (route) => {
+    forecastRequests += 1;
+    return route.fulfill({ json: forecastResponse });
+  });
+
+  await page.goto('/');
+  const search = page.getByRole('searchbox', { name: 'Cidade' });
+  const submit = page.getByRole('button', { name: 'Buscar', exact: true });
+
+  for (const query of ['', '   ']) {
+    await search.fill(query);
+    await submit.click();
+    await expect(page.getByRole('alert')).toContainText('Digite o nome de uma cidade.');
+    expect(geocodingRequests).toBe(0);
+    expect(forecastRequests).toBe(0);
+  }
+});
+
+test('preserva caracteres especiais e codifica o termo como um único parâmetro', async ({
+  page,
+}) => {
+  const query = "São João-d'Aliança 東京 &name=outro";
+  const result = { ...city, name: query };
+  await page.route('https://geocoding-api.open-meteo.com/**', (route) =>
+    route.fulfill({ json: { results: [result] } }),
+  );
+  await page.route('https://api.open-meteo.com/**', (route) =>
+    route.fulfill({ json: forecastResponse }),
+  );
+  const geocodingRequest = page.waitForRequest((request) =>
+    request.url().startsWith('https://geocoding-api.open-meteo.com/'),
+  );
+
+  await page.goto('/');
+  await page.getByRole('searchbox', { name: 'Cidade' }).fill(`  ${query}  `);
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+
+  const request = await geocodingRequest;
+  const requestUrl = new URL(request.url());
+  expect(requestUrl.searchParams.get('name')).toBe(query);
+  expect([...requestUrl.searchParams.keys()]).toContain('name');
+  expect([...requestUrl.searchParams.keys()]).not.toContain('outro');
+  await expect(page.getByRole('heading', { name: query, exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: query, exact: true })).toBeVisible();
+});
+
+test('mantém cinco dias e marca como indisponíveis os campos de forecast ausentes', async ({
+  page,
+}) => {
+  await page.route('https://geocoding-api.open-meteo.com/**', (route) =>
+    route.fulfill({ json: { results: [city] } }),
+  );
+  await page.route('https://api.open-meteo.com/**', (route) =>
+    route.fulfill({
+      json: {
+        timezone: 'America/Bahia',
+        current: { temperature_2m: 21, weather_code: 0 },
+        daily: {
+          time: dates.slice(0, 2),
+          temperature_2m_min: [15],
+          temperature_2m_max: [25],
+          weather_code: [0],
+          precipitation_probability_max: [0],
+        },
+      },
+    }),
+  );
+
+  await page.goto('/');
+  await page.getByRole('searchbox', { name: 'Cidade' }).fill('Salvador');
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+
+  const currentWeather = page.getByRole('region', { name: 'Salvador', exact: true });
+  await expect(currentWeather.getByText('21,0 °C', { exact: true })).toBeVisible();
+  await expect(currentWeather.getByText('Sensação térmica: Indisponível')).toBeVisible();
+  const cards = page.getByRole('article');
+  await expect(cards).toHaveCount(5);
+  await expect(cards.nth(0).getByText('15,0 °C', { exact: true })).toBeVisible();
+  await expect(cards.nth(0).getByText('25,0 °C', { exact: true })).toBeVisible();
+  await expect(cards.nth(0).getByText('0 %', { exact: true })).toBeVisible();
+  await expect(cards.nth(4).getByText('Indisponível').first()).toBeVisible();
+  await expect(page.getByText(/NaN|undefined|null/)).toHaveCount(0);
 });
 
 test('recupera erro HTTP do forecast por meio da ação de nova tentativa', async ({ page }) => {
@@ -90,7 +190,7 @@ test('recupera erro HTTP do forecast por meio da ação de nova tentativa', asyn
 
   const alert = page.getByRole('alert');
   await expect(alert).toContainText('Erro ao consultar o clima');
-  await expect(alert).toContainText('HTTP 503');
+  await expect(alert).toContainText('Não foi possível consultar o clima');
   await page.getByRole('button', { name: 'Tentar novamente' }).click();
 
   await expect(page.getByRole('region', { name: 'Salvador', exact: true })).toBeVisible();

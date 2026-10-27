@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import CurrentWeather from './components/CurrentWeather';
 import ForecastList from './components/ForecastList';
 import SearchBar from './components/SearchBar';
@@ -11,9 +11,17 @@ import type { Unit } from './types/weather';
 
 export default function App() {
   const [unit, setUnit] = useState<Unit>('celsius');
-  const { status, data, cities, error, search, retry } = useWeather();
+  const { status, data, cities, error, canRetry, search, retry } = useWeather();
   const mainRef = useRef<HTMLElement>(null);
+  const previousStatus = useRef(status);
   const operation = cities.length ? 'weather' : 'search';
+
+  useEffect(() => {
+    if (previousStatus.current === 'loading' && status !== 'loading') {
+      mainRef.current?.focus();
+    }
+    previousStatus.current = status;
+  }, [status]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-night-900 via-night-800 to-night-900 font-sans text-white [overflow-wrap:anywhere]">
@@ -53,6 +61,7 @@ export default function App() {
           ref={mainRef}
           id="main-content"
           tabIndex={-1}
+          aria-busy={status === 'loading'}
           className="space-y-6 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-400 focus-visible:ring-offset-2 focus-visible:ring-offset-night-900"
         >
           {status === 'idle' && (
@@ -69,10 +78,11 @@ export default function App() {
             <ErrorState
               message={error ?? undefined}
               operation={operation}
-              onRetry={() => {
-                void retry();
-                mainRef.current?.focus();
-              }}
+              onRetry={
+                canRetry
+                  ? () => void retry()
+                  : undefined
+              }
             />
           )}
           {status === 'success' && data && (

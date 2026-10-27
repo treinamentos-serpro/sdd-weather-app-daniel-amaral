@@ -4,10 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/App';
 import { formatTemperature } from '../../src/lib/temperature';
 import { mockWeatherData } from '../../src/mocks/weather';
-import { getWeather, searchCities } from '../../src/services/weatherService';
+import {
+  getWeather,
+  searchCities,
+  WeatherServiceError,
+} from '../../src/services/weatherService';
 import type { WeatherData } from '../../src/types/weather';
 
-vi.mock('../../src/services/weatherService', () => ({
+vi.mock('../../src/services/weatherService', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/services/weatherService')>()),
   getWeather: vi.fn(),
   searchCities: vi.fn(),
 }));
@@ -31,6 +36,7 @@ describe('App', () => {
     render(<App />);
     expect(screen.getByRole('heading', { name: 'WeatherView', level: 1 })).toBeVisible();
     expect(screen.getByRole('search', { name: 'Buscar cidade' })).toBeVisible();
+    expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'false');
     expect(screen.getByRole('heading', { name: 'Consulte o clima de uma cidade' })).toBeVisible();
     expect(screen.getByRole('button', { name: '°C', pressed: true })).toBeVisible();
     expect(screen.queryByRole('article')).not.toBeInTheDocument();
@@ -49,6 +55,7 @@ describe('App', () => {
     expect(screen.getByRole('region', { name: 'Previsão de 5 dias' })).toBeVisible();
     expect(screen.getAllByRole('article')).toHaveLength(5);
     expect(screen.getByText('25,4 °C')).toBeVisible();
+    expect(screen.getByRole('main')).toHaveFocus();
     expect(screen.queryByRole('region', { name: 'Salvador' })).not.toBeInTheDocument();
     expect(searchCities).toHaveBeenCalledExactlyOnceWith('Recife');
     expect(getWeather).toHaveBeenCalledExactlyOnceWith(data.city);
@@ -72,6 +79,11 @@ describe('App', () => {
     );
     await submitSearch('Recife');
     expect(screen.getByRole('status')).toHaveTextContent('Buscando cidades');
+    expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('search', { name: 'Buscar cidade' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
     expect(screen.getByRole('searchbox', { name: 'Cidade' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Buscar' })).toBeDisabled();
     expect(screen.queryByRole('article')).not.toBeInTheDocument();
@@ -83,6 +95,8 @@ describe('App', () => {
       resolveWeather(mockWeatherData);
     });
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'false');
+    expect(screen.getByRole('main')).toHaveFocus();
     expect(screen.getAllByRole('article')).toHaveLength(5);
   });
 
@@ -93,6 +107,7 @@ describe('App', () => {
     vi.mocked(searchCities).mockResolvedValue([]);
     await submitSearch('Inexistente');
     expect(await screen.findByRole('region', { name: 'Nenhuma cidade encontrada' })).toBeVisible();
+    expect(screen.getByRole('main')).toHaveFocus();
     expect(screen.queryByRole('article')).not.toBeInTheDocument();
     expect(getWeather).toHaveBeenCalledTimes(1);
   });
@@ -102,8 +117,21 @@ describe('App', () => {
     'weather',
   ])('mostra erro de %s e retry executa a operação real', async (operation) => {
     if (operation === 'search')
-      vi.mocked(searchCities).mockRejectedValueOnce(new Error('Falha de rede.'));
-    else vi.mocked(getWeather).mockRejectedValueOnce(new Error('A requisição demorou demais.'));
+      vi.mocked(searchCities).mockRejectedValueOnce(
+        new WeatherServiceError(
+          'Não foi possível conectar ao serviço. Verifique sua conexão e tente novamente.',
+          undefined,
+          'network',
+        ),
+      );
+    else
+      vi.mocked(getWeather).mockRejectedValueOnce(
+        new WeatherServiceError(
+          'A solicitação excedeu o tempo limite de 10 segundos. Verifique sua conexão e tente novamente.',
+          undefined,
+          'timeout',
+        ),
+      );
     render(<App />);
     const user = await submitSearch();
     const alert = await screen.findByRole('alert');
@@ -111,7 +139,9 @@ describe('App', () => {
       operation === 'search' ? 'Erro ao buscar cidades' : 'Erro ao consultar o clima',
     );
     expect(alert).toHaveTextContent(
-      operation === 'search' ? 'Falha de rede.' : 'A requisição demorou demais.',
+      operation === 'search'
+        ? 'Não foi possível conectar ao serviço. Verifique sua conexão e tente novamente.'
+        : 'A solicitação excedeu o tempo limite de 10 segundos. Verifique sua conexão e tente novamente.',
     );
     expect(screen.queryByRole('article')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
@@ -120,6 +150,36 @@ describe('App', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(searchCities).toHaveBeenCalledTimes(operation === 'search' ? 2 : 1);
     expect(getWeather).toHaveBeenCalledTimes(operation === 'search' ? 1 : 2);
+  });
+
+  it.each(['', '   '])('valida busca sem conteúdo %j sem chamar serviços', async (query) => {
+    const user = userEvent.setup();
+    render(<App />);
+    if (query) await user.type(screen.getByRole('searchbox', { name: 'Cidade' }), query);
+    await user.click(screen.getByRole('button', { name: 'Buscar' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Digite o nome de uma cidade.');
+    expect(screen.queryByRole('button', { name: 'Tentar novamente' })).not.toBeInTheDocument();
+    expect(searchCities).not.toHaveBeenCalled();
+    expect(getWeather).not.toHaveBeenCalled();
+  });
+
+  it('preserva caracteres especiais na busca e os renderiza como texto', async () => {
+    const query = "São João-d'Aliança 東京 &name=outro";
+    const result = {
+      ...mockWeatherData.city,
+      name: query,
+    };
+    vi.mocked(searchCities).mockResolvedValue([result]);
+    vi.mocked(getWeather).mockResolvedValue({ ...mockWeatherData, city: result });
+    render(<App />);
+
+    await submitSearch(`  ${query}  `);
+
+    expect(await screen.findByText(query, { selector: 'h2' })).toBeVisible();
+    expect(searchCities).toHaveBeenCalledExactlyOnceWith(query);
+    expect(getWeather).toHaveBeenCalledExactlyOnceWith(result);
+    expect(screen.queryByRole('heading', { name: /^outro$/ })).not.toBeInTheDocument();
   });
 
   it('converte todas as temperaturas sem rede e preserva unidade nas novas buscas', async () => {

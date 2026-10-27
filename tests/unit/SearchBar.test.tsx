@@ -82,12 +82,20 @@ describe('SearchBar', () => {
 
     expect(input).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Buscar' })).toBeDisabled();
+    expect(screen.getByRole('search', { name: 'Buscar cidade' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
     await user.click(screen.getByRole('button', { name: 'Buscar' }));
     fireEvent.submit(screen.getByRole('search', { name: 'Buscar cidade' }));
     expect(onSearch).not.toHaveBeenCalled();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 
     rerender(<SearchBar onSearch={onSearch} disabled={false} />);
+    expect(screen.getByRole('search', { name: 'Buscar cidade' })).toHaveAttribute(
+      'aria-busy',
+      'false',
+    );
     await user.click(screen.getByRole('button', { name: 'Buscar' }));
     expect(onSearch).toHaveBeenCalledExactlyOnceWith('Recife');
   });

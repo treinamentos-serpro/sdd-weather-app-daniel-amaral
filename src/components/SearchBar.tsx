@@ -31,6 +31,7 @@ export default function SearchBar({ onSearch, disabled = false }: SearchBarProps
     <form
       role="search"
       aria-label="Buscar cidade"
+      aria-busy={disabled}
       onSubmit={handleSubmit}
       className="min-w-0 rounded-2xl border border-white/10 bg-white/5 p-4 font-sans text-white shadow-glass backdrop-blur-md"
     >
@@ -52,12 +53,12 @@ export default function SearchBar({ onSearch, disabled = false }: SearchBarProps
             setError(null);
           }}
           placeholder="Ex.: São Paulo"
-          className="min-w-0 flex-1 rounded-xl border border-slate-400 bg-night-800 px-4 py-3 text-white placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-400 focus-visible:ring-offset-2 focus-visible:ring-offset-night-900 disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-w-0 flex-1 rounded-xl border border-slate-400 bg-night-800 px-4 py-3 text-white placeholder:text-slate-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-400 focus-visible:ring-offset-2 focus-visible:ring-offset-night-900 disabled:cursor-wait disabled:border-slate-600 disabled:opacity-70"
         />
         <button
           type="submit"
           disabled={disabled}
-          className="rounded-xl bg-accent-400 px-5 py-3 font-semibold text-night-900 enabled:hover:bg-accent-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-400 focus-visible:ring-offset-2 focus-visible:ring-offset-night-900 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-xl bg-accent-400 px-5 py-3 font-semibold text-night-900 transition-colors enabled:hover:bg-accent-500 enabled:active:bg-accent-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-400 focus-visible:ring-offset-2 focus-visible:ring-offset-night-900 disabled:cursor-wait disabled:bg-slate-600 disabled:text-slate-100 disabled:opacity-100"
         >
           Buscar
         </button>

@@ -21,12 +21,15 @@ export function unitLabel(unit: Unit): string {
   return unit === 'fahrenheit' ? '°F' : '°C';
 }
 
-export function formatTemperature(temperatureC: number | null, unit: Unit): string {
-  if (temperatureC === null) return 'Indisponível';
-  if (!Number.isFinite(temperatureC)) {
-    throw new RangeError('A temperatura deve ser um número finito ou null.');
+export function formatTemperature(
+  temperatureC: number | null | undefined,
+  unit: Unit,
+): string {
+  if (typeof temperatureC !== 'number' || !Number.isFinite(temperatureC)) {
+    return 'Indisponível';
   }
 
   const temperature = convertTemperature(temperatureC, unit);
+  if (!Number.isFinite(temperature)) return 'Indisponível';
   return `${temperatureFormatter.format(temperature)} ${unitLabel(unit)}`;
 }

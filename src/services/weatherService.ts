@@ -11,19 +11,65 @@ export class WeatherServiceError extends Error {
   }
 }
 
-export async function fetchWithTimeout(url: string): Promise<Response> {
+const timeoutMessage =
+  'A solicitação excedeu o tempo limite de 10 segundos. Verifique sua conexão e tente novamente.';
+const networkMessage =
+  'Não foi possível conectar ao serviço. Verifique sua conexão e tente novamente.';
+const searchResponseMessage = 'Não foi possível buscar cidades. Tente novamente mais tarde.';
+const weatherResponseMessage = 'Não foi possível consultar o clima. Tente novamente mais tarde.';
+
+function isAbortError(value: unknown): boolean {
+  return isRecord(value) && value.name === 'AbortError';
+}
+
+async function requestWithTimeout<T>(
+  url: string,
+  readResponse: (response: Response) => Promise<T> | T,
+): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  const timeoutRequest = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      controller.abort();
+      reject(new WeatherServiceError(timeoutMessage, undefined, 'timeout'));
+    }, 10_000);
+  });
+
+  const request = Promise.resolve()
+    .then(() => fetch(url, { signal: controller.signal }))
+    .then(readResponse)
+    .catch((cause) => {
+      if (cause instanceof WeatherServiceError) throw cause;
+      if (isAbortError(cause)) {
+        throw new WeatherServiceError(timeoutMessage, { cause }, 'timeout');
+      }
+      throw new WeatherServiceError(networkMessage, { cause }, 'network');
+    });
+
   try {
-    return await fetch(url, { signal: controller.signal });
-  } catch (cause) {
-    if (isRecord(cause) && cause.name === 'AbortError') {
-      throw new WeatherServiceError('A requisição demorou demais.', { cause }, 'timeout');
-    }
-    throw new WeatherServiceError('Falha de rede.', { cause }, 'network');
+    return await Promise.race([request, timeoutRequest]);
   } finally {
-    clearTimeout(timeout);
+    if (timeout !== null) clearTimeout(timeout);
   }
+}
+
+export async function fetchWithTimeout(url: string): Promise<Response> {
+  return requestWithTimeout(url, (response) => response);
+}
+
+async function fetchJsonWithTimeout(url: string, operationMessage: string): Promise<unknown> {
+  return requestWithTimeout(url, async (response) => {
+    if (!response.ok) {
+      throw new WeatherServiceError(operationMessage, undefined, 'invalid-response');
+    }
+
+    try {
+      return await response.json();
+    } catch (cause) {
+      if (isAbortError(cause)) throw cause;
+      throw new WeatherServiceError(operationMessage, { cause }, 'invalid-response');
+    }
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -42,7 +88,7 @@ function normalizeCity(result: unknown): City {
     !Number.isFinite(result.longitude) ||
     Math.abs(result.longitude) > 180
   ) {
-    throw new WeatherServiceError('Resposta inválida ao buscar cidades.');
+    throw new WeatherServiceError(searchResponseMessage);
   }
 
   const administrativeArea = typeof result.admin1 === 'string' ? result.admin1 : null;
@@ -73,28 +119,17 @@ export async function searchCities(name: string): Promise<City[]> {
   const query = name.trim();
   if (query === '') return [];
 
-  const response = await fetchWithTimeout(
+  const data = await fetchJsonWithTimeout(
     `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=10&language=pt&format=json`,
+    searchResponseMessage,
   );
-  if (!response.ok) {
-    throw new WeatherServiceError(`Não foi possível buscar cidades (HTTP ${response.status}).`);
-  }
-
-  let data: unknown;
-  try {
-    data = await response.json();
-  } catch (cause) {
-    throw new WeatherServiceError('Resposta inválida ao buscar cidades.', {
-      cause,
-    });
-  }
 
   if (!isRecord(data) || data.error) {
-    throw new WeatherServiceError('Resposta inválida ao buscar cidades.');
+    throw new WeatherServiceError(searchResponseMessage);
   }
   if (!('results' in data)) return [];
   if (!Array.isArray(data.results)) {
-    throw new WeatherServiceError('Resposta inválida ao buscar cidades.');
+    throw new WeatherServiceError(searchResponseMessage);
   }
 
   return data.results.map(normalizeCity);
@@ -129,17 +164,10 @@ export async function getWeather(city: City): Promise<WeatherData> {
     wind_speed_unit: 'kmh',
     precipitation_unit: 'mm',
   });
-  const response = await fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?${params}`);
-  if (!response.ok) {
-    throw new WeatherServiceError(`Não foi possível consultar o clima (HTTP ${response.status}).`);
-  }
-
-  let data: unknown;
-  try {
-    data = await response.json();
-  } catch (cause) {
-    throw new WeatherServiceError('Resposta inválida ao consultar o clima.', { cause });
-  }
+  const data = await fetchJsonWithTimeout(
+    `https://api.open-meteo.com/v1/forecast?${params}`,
+    weatherResponseMessage,
+  );
   if (
     !isRecord(data) ||
     data.error ||
@@ -148,12 +176,12 @@ export async function getWeather(city: City): Promise<WeatherData> {
     typeof data.timezone !== 'string' ||
     data.timezone.trim() === ''
   ) {
-    throw new WeatherServiceError('Resposta incompleta ou inválida ao consultar o clima.');
+    throw new WeatherServiceError(weatherResponseMessage);
   }
   try {
     new Intl.DateTimeFormat('pt-BR', { timeZone: data.timezone });
   } catch (cause) {
-    throw new WeatherServiceError('Fuso horário inválido na resposta do clima.', { cause });
+    throw new WeatherServiceError(weatherResponseMessage, { cause });
   }
 
   const { current, daily } = data;
@@ -164,7 +192,7 @@ export async function getWeather(city: City): Promise<WeatherData> {
     !dates.every(isISODate) ||
     dates.some((date, index) => index > 0 && date <= dates[index - 1])
   ) {
-    throw new WeatherServiceError('Período inválido na resposta do clima.');
+    throw new WeatherServiceError(weatherResponseMessage);
   }
   const periodStart = dates[0];
   const currentWeather: CurrentWeather = {
@@ -190,9 +218,7 @@ export async function getWeather(city: City): Promise<WeatherData> {
       minTemperatureC: finiteNumber(dailyValue('temperature_2m_min', index)),
       maxTemperatureC: finiteNumber(dailyValue('temperature_2m_max', index)),
       weatherCode: finiteNumber(dailyValue('weather_code', index)),
-      precipitationProbabilityMaxPercent: percentage(
-        precipitationProbability === null ? 0 : precipitationProbability,
-      ),
+      precipitationProbabilityMaxPercent: percentage(precipitationProbability),
     };
   });
 

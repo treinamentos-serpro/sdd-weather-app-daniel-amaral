@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getWeather, searchCities } from '../services/weatherService';
+import { getWeather, searchCities, WeatherServiceError } from '../services/weatherService';
 import type { City, WeatherData } from '../types/weather';
 
 export type WeatherStatus = 'idle' | 'loading' | 'success' | 'error' | 'empty';
@@ -38,7 +38,10 @@ export function useWeather() {
       ...previous,
       status: 'error',
       data: null,
-      error: cause instanceof Error ? cause.message : 'Não foi possível consultar o clima.',
+      error:
+        cause instanceof WeatherServiceError
+          ? cause.message
+          : 'Não foi possível concluir a solicitação. Tente novamente.',
     }));
   }, []);
 
@@ -53,7 +56,7 @@ export function useWeather() {
     async (name: string) => {
       const request = ++generation.current;
       const query = name.trim();
-      lastOperation.current = { type: 'search', name: query };
+      lastOperation.current = query ? { type: 'search', name: query } : null;
       setState({
         status: query ? 'loading' : 'error',
         data: null,
@@ -98,7 +101,13 @@ export function useWeather() {
     else if (operation?.type === 'weather') await selectCity(operation.city);
   }, [search, selectCity]);
 
-  return { ...state, search, selectCity, retry };
+  return {
+    ...state,
+    canRetry: state.status === 'error' && lastOperation.current !== null,
+    search,
+    selectCity,
+    retry,
+  };
 }
 
 export default useWeather;

@@ -38,4 +38,23 @@ describe('ForecastList', () => {
     expect(within(cards[2]).getAllByText('Indisponível')).toHaveLength(4);
     expect(within(cards[0]).getByText('81,5 °F')).toBeVisible();
   });
+
+  it('não exibe valores não finitos na previsão', () => {
+    const forecast = mockWeatherData.forecast.map((day, index) =>
+      index === 2
+        ? {
+            ...day,
+            minTemperatureC: Number.NaN,
+            maxTemperatureC: Number.POSITIVE_INFINITY,
+            weatherCode: Number.NaN,
+            precipitationProbabilityMaxPercent: Number.NaN,
+          }
+        : day,
+    );
+    render(<ForecastList forecast={forecast} unit="celsius" />);
+
+    const card = screen.getAllByRole('article')[2];
+    expect(within(card).getAllByText('Indisponível')).toHaveLength(4);
+    expect(within(card).queryByText(/NaN|Infinity|undefined/)).not.toBeInTheDocument();
+  });
 });

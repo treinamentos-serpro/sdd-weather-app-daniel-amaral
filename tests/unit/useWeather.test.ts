@@ -76,6 +76,7 @@ describe('useWeather', () => {
     await act(() => result.current.search(query));
     expect(result.current).toMatchObject({
       status: 'error',
+      canRetry: false,
       error: 'Digite o nome de uma cidade.',
       query: '',
       data: null,
@@ -127,10 +128,21 @@ describe('useWeather', () => {
   });
 
   it('expõe erro de busca e retry repete o geocoding', async () => {
-    vi.mocked(searchCities).mockRejectedValueOnce(new Error('Falha de rede.'));
+    vi.mocked(searchCities).mockRejectedValueOnce(
+      new WeatherServiceError(
+        'Não foi possível conectar ao serviço. Verifique sua conexão e tente novamente.',
+        undefined,
+        'network',
+      ),
+    );
     const { result } = renderHook(() => useWeather());
     await act(() => result.current.search(' Salvador '));
-    expect(result.current).toMatchObject({ status: 'error', error: 'Falha de rede.', data: null });
+    expect(result.current).toMatchObject({
+      status: 'error',
+      canRetry: true,
+      error: 'Não foi possível conectar ao serviço. Verifique sua conexão e tente novamente.',
+      data: null,
+    });
     expect(getWeather).not.toHaveBeenCalled();
     await act(() => result.current.retry());
     expect(searchCities).toHaveBeenNthCalledWith(2, 'Salvador');
@@ -140,13 +152,19 @@ describe('useWeather', () => {
 
   it('retry após falha do forecast repete só o clima da mesma cidade', async () => {
     vi.mocked(getWeather).mockRejectedValueOnce(
-      new WeatherServiceError('A requisição demorou demais.', undefined, 'timeout'),
+      new WeatherServiceError(
+        'A solicitação excedeu o tempo limite de 10 segundos. Verifique sua conexão e tente novamente.',
+        undefined,
+        'timeout',
+      ),
     );
     const { result } = renderHook(() => useWeather());
     await act(() => result.current.search('Salvador'));
     expect(result.current).toMatchObject({
       status: 'error',
-      error: 'A requisição demorou demais.',
+      canRetry: true,
+      error:
+        'A solicitação excedeu o tempo limite de 10 segundos. Verifique sua conexão e tente novamente.',
       cities: [city, otherCity],
       data: null,
     });

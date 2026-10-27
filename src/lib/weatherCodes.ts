@@ -36,6 +36,6 @@ const weatherConditions = new Map<number, WeatherCondition>([
 
 const unavailable: WeatherCondition = { label: 'Indisponível', icon: '—' };
 
-export function getWeatherCondition(code: number | null): WeatherCondition {
-  return (code === null ? undefined : weatherConditions.get(code)) ?? unavailable;
+export function getWeatherCondition(code: number | null | undefined): WeatherCondition {
+  return (typeof code === 'number' ? weatherConditions.get(code) : undefined) ?? unavailable;
 }
