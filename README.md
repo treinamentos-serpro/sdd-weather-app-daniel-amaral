@@ -59,8 +59,11 @@ Cada módulo tem **README.md**, **challenge.md**, **prompts.md** e
 
 ```bash
 pnpm install
-pnpm exec playwright install   # navegadores para os testes E2E
+pnpm exec playwright install chromium   # navegador usado nos testes E2E
 ```
+
+O projeto `mobile` usa Chromium com emulação de viewport e toque do iPhone 13;
+não é necessário instalar as dependências do WebKit para executar `pnpm test:e2e`.
 
 ### Scripts
 
