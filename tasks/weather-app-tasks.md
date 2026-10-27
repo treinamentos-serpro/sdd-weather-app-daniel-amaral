@@ -89,6 +89,7 @@ Execute os testes de cada fatia junto com a implementação daquela fatia, embor
   - Cada código presente na tabela de códigos implementada retorna um rótulo em pt-BR não vazio.
   - Código desconhecido ou `null` retorna o marcador definido para condição indisponível, não o rótulo de céu limpo.
   - A função de mapeamento não depende de estado React ou de componentes de UI.
+  - O utilitário também fornece um ícone decorativo por condição e um marcador neutro para códigos ausentes ou desconhecidos.
 - **Rastreabilidade:** RF2 e RF3; AC2.1 e AC3.2.
 - **Dependências:** T-01
 - **Arquivos prováveis:** `src/lib/weatherCodes.ts`
@@ -174,12 +175,13 @@ Execute os testes de cada fatia junto com a implementação daquela fatia, embor
 - **Título:** Implementar o hook de busca e seleção de cidade
 - **Prioridade:** P0
 - **Tamanho:** M
-- **Descrição:** Coordenar termo de busca, resultados, validação local e seleção explícita de cidade em `useWeather`.
+- **Descrição:** Coordenar termo de busca, resultados, validação local, seleção automática da primeira cidade e seleção explícita de outra em `useWeather`.
 - **Critérios de aceite:**
   - Ao submeter termo não vazio, o estado de busca passa a loading antes de a Promise do serviço resolver e o serviço de geocoding é chamado uma vez.
   - Ao submeter string vazia ou só espaços, o serviço não é chamado e o estado expõe erro de validação associado ao campo.
   - Ao resolver busca com lista vazia, forecast não é chamado e os dados meteorológicos não são atribuídos ao termo recém-buscado.
-  - Resolver busca com resultados não seleciona cidade; chamar ação explícita de seleção inicia exatamente uma consulta de forecast para a cidade escolhida.
+  - Resolver busca com resultados consulta automaticamente o forecast da primeira cidade; chamar ação explícita de seleção inicia exatamente uma consulta para a cidade escolhida.
+  - O contrato inicial expõe `status` agregado (`idle`, `loading`, `success`, `error`, `empty`), `data`, `cities`, `error`, `query`, `search(name)`, `selectCity(city)` e `retry()`. Estados separados e unidade de T-09 não fazem parte deste incremento.
 - **Rastreabilidade:** RF1 e RF5; AC1.4, AC1.6, AC5.1 e AC5.2.
 - **Dependências:** T-05, T-07
 - **Arquivos prováveis:** `src/hooks/useWeather.ts`
@@ -213,7 +215,7 @@ Execute os testes de cada fatia junto com a implementação daquela fatia, embor
   - Em teste de deferred Promises, busca B resolve antes de A e os resultados finais continuam sendo os de B.
   - Em teste de deferred Promises, forecast de cidade B resolve antes de A e o snapshot final continua associado a B.
   - Timeout, rejeição de rede e nova busca levam cada operação a estado final diferente de `loading`.
-  - Após erro, retry chama uma vez o mesmo serviço com os mesmos parâmetros da operação; resposta cancelada ou obsoleta é ignorada pela identidade/geração da solicitação.
+  - Retry repete a última operação iniciada, inclusive após sucesso ou lista vazia: geocoding com o mesmo termo ou forecast com a mesma cidade. Sem operação anterior, não chama serviços. Resposta cancelada ou obsoleta é ignorada pela identidade/geração da solicitação, inclusive após desmontagem.
 - **Rastreabilidade:** RF5; AC1.7, AC2.2, AC5.3–AC5.5; RNF6.
 - **Dependências:** T-09
 - **Arquivos prováveis:** `src/hooks/useWeather.ts`
@@ -281,6 +283,7 @@ Execute os testes de cada fatia junto com a implementação daquela fatia, embor
   - Quando os valores estão presentes, a UI renderiza nome da cidade, temperatura, sensação térmica, umidade relativa e condição.
   - Para cada campo `null`, a UI renderiza marcador textual de indisponibilidade; não renderiza valor de snapshot anterior.
   - Temperaturas exibem valor e símbolo da unidade de apresentação; condição usa rótulo fornecido pelo mapeamento pt-BR.
+  - O hero usa temperatura grande e ícone decorativo do utilitário de códigos; exibe também vento em km/h, precipitação atual em mm e pressão à superfície em hPa, com métricas anuláveis no contrato e no mock.
 - **Rastreabilidade:** RF2, RF4 e RF6; AC2.1, AC2.2, AC4.1–AC4.3 e AC6.1.
 - **Dependências:** T-02, T-03, T-09
 - **Arquivos prováveis:** `src/components/CurrentWeather.tsx`
@@ -375,6 +378,7 @@ Execute os testes de cada fatia junto com a implementação daquela fatia, embor
 - **Prioridade:** P0
 - **Tamanho:** G
 - **Descrição:** Integrar busca, resultados, estados, clima atual, previsão e unidade em `App`.
+- **Incremento de integração real:** Substituir mock e seletor demonstrativo por `useWeather`, iniciando em `idle`; SearchBar chama `search` e ErrorState chama `retry`. Renderizar os cinco estados sem dados antigos. Manter unidade no App e passá-la a clima atual e previsão, sem rede ao alternar. A lista CityResults permanece para etapa posterior.
 - **Critérios de aceite:**
   - A tela renderiza SearchBar, CityResults, clima atual, lista de previsão, controle de unidade e estados de loading/vazio/erro conforme o estado correspondente de `useWeather`.
   - Enviar busca, selecionar resultado, acionar retry e alterar unidade chamam a ação correspondente do hook uma vez.
@@ -642,6 +646,7 @@ Execute os testes de cada fatia junto com a implementação daquela fatia, embor
   - Teste com fixture completa encontra cidade, temperatura, sensação, umidade e condição.
   - Teste com `0` renderiza zero; teste com `null` renderiza marcador de indisponibilidade e não valor de clima anterior.
   - O código meteorológico fixture é exibido pelo rótulo pt-BR esperado.
+  - Vento, precipitação e pressão são verificados com valores presentes, zero e `null`; mudar a unidade converte temperatura e sensação sem alterar as demais métricas.
 - **Rastreabilidade:** RF2 e RF6; AC2.1, AC2.2 e AC6.1.
 - **Dependências:** T-24, T-14
 - **Arquivos prováveis:** `tests/unit/CurrentWeather.test.tsx`

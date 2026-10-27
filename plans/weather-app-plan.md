@@ -83,6 +83,9 @@ interface CurrentWeather {
   temperatureC: number | null;
   apparentTemperatureC: number | null;
   relativeHumidityPercent: number | null;
+  windSpeedKmh: number | null;
+  precipitationMm: number | null;
+  surfacePressureHpa: number | null;
   weatherCode: number | null;
 }
 
@@ -137,8 +140,8 @@ flowchart TD
     E --> F{Resultado da busca}
     F -->|Erro, falha de rede ou timeout| G[Estado de erro da busca]
     F -->|Nenhuma cidade encontrada| H[Estado vazio da busca]
-    F -->|Cidades encontradas| I[Lista de cidades para seleção explícita]
-    I -->|Cidade selecionada| J[Hook: associa cidade e define loading]
+    F -->|Cidades encontradas| I[Lista de cidades; primeira selecionada automaticamente]
+    I -->|Primeira cidade ou outra seleção explícita| J[Hook: associa cidade e define loading]
     J --> K[Service de forecast]
     K --> L{Resposta identificável e utilizável?}
     L -->|Não: erro, timeout ou resposta inválida| M[Estado de erro da consulta]
@@ -153,7 +156,7 @@ flowchart TD
 ```
 
 1. A pessoa digita a cidade; o envio explícito remove somente espaços externos. Campo vazio não chama a API e recebe mensagem junto ao campo (AC1.1, AC1.4, AC1.5).
-2. O hook define imediatamente o estado de busca como loading e o service consulta o geocoding. Resultados mostram nome, divisão administrativa e país quando disponíveis; coordenadas distinguem rótulos ainda idênticos. Nenhum resultado é selecionado automaticamente.
+2. O hook define imediatamente o estado de busca como loading e o service consulta o geocoding. Resultados mostram nome, divisão administrativa e país quando disponíveis; coordenadas distinguem rótulos ainda idênticos. A primeira cidade é selecionada automaticamente para carregar o clima; a lista permite escolher outro resultado.
 3. Busca vazia apresenta estado empty, não consulta o clima e não atribui à nova busca os dados de uma seleção anterior.
 4. Ao selecionar explicitamente uma cidade, o hook define loading para weather e o service solicita as condições atuais e a previsão para as coordenadas selecionadas.
 5. O service valida a estrutura, associa a resposta à cidade solicitada, exige fuso horário e período identificáveis, normaliza valores e constrói cinco datas consecutivas segundo a data local da cidade. Datas sem métricas permanecem no resultado com campos `null`.
@@ -171,7 +174,7 @@ Todas as chamadas usam HTTPS e têm timeout de 10 segundos. Os exemplos abaixo s
 
 | Parâmetro | Valor / finalidade |
 |---|---|
-| `name` | Termo enviado explicitamente, sem espaços externos; preservar Unicode e codificar com `URLSearchParams`. |
+| `name` | Termo enviado explicitamente, sem espaços externos; preservar Unicode e codificar com `encodeURIComponent`. |
 | `count` | `10`: limite inicial simples para a lista de resultados; a API aceita até 100. |
 | `language` | `pt`: nomes traduzidos quando disponíveis; o provedor pode retornar nomes em inglês ou no idioma local. |
 | `format` | `json`. |
@@ -181,7 +184,7 @@ Todas as chamadas usam HTTPS e têm timeout de 10 segundos. Os exemplos abaixo s
 Exemplo de URL:
 
 ```text
-https://geocoding-api.open-meteo.com/v1/search?name=S%C3%A3o+Paulo&count=10&language=pt&format=json
+https://geocoding-api.open-meteo.com/v1/search?name=S%C3%A3o%20Paulo&count=10&language=pt&format=json
 ```
 
 Exemplo resumido de resposta:
@@ -215,7 +218,7 @@ Exemplo resumido de resposta:
 
 Campos como `country_code` e `timezone` não precisam ser duplicados em `City` para atender à spec. Validar o nome e a identidade utilizável antes de oferecer seleção; não inventar coordenadas ausentes. Quando não há correspondências, o provedor pode omitir `results`; a ausência em uma resposta JSON válida sem erro, ou um array vazio, significa lista vazia. Um `results` presente com estrutura inválida é falha, não “nenhuma cidade encontrada”.
 
-A API não retorna correspondências para termos com um único caractere; o app não precisa proibir esse envio, apenas apresentar o estado vazio retornado. Cada resultado exige seleção explícita; incluir coordenadas quando nome, divisão administrativa e país não distinguirem os rótulos (AC1.2–AC1.6).
+A API não retorna correspondências para termos com um único caractere; o app não precisa proibir esse envio, apenas apresentar o estado vazio retornado. A primeira cidade é selecionada automaticamente, sem impedir seleção explícita de outra; incluir coordenadas quando nome, divisão administrativa e país não distinguirem os rótulos (AC1.2–AC1.6).
 
 ### Forecast — clima atual e cinco dias
 
@@ -224,7 +227,8 @@ A API não retorna correspondências para termos com um único caractere; o app 
 | Parâmetro | Valor / finalidade |
 |---|---|
 | `latitude`, `longitude` | Coordenadas da `City` selecionada. |
-| `current` | `temperature_2m,apparent_temperature,relative_humidity_2m,weather_code`. |
+| `current` | `temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,precipitation,surface_pressure,weather_code`. |
+| `wind_speed_unit`, `precipitation_unit` | `kmh`, `mm`: unidades canônicas das métricas adicionais. |
 | `daily` | `temperature_2m_min,temperature_2m_max,weather_code,precipitation_probability_max`. |
 | `timezone` | `auto`: determina o fuso pelas coordenadas; as datas diárias começam à meia-noite local. |
 | `forecast_days` | `5`: hoje e os quatro dias seguintes, no fuso consultado. |
@@ -236,9 +240,10 @@ Exemplo de URL (quebras de linha apenas para leitura):
 ```text
 https://api.open-meteo.com/v1/forecast
 ?latitude=-23.5475&longitude=-46.6361
-&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code
+&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,precipitation,surface_pressure,weather_code
 &daily=temperature_2m_min,temperature_2m_max,weather_code,precipitation_probability_max
 &timezone=auto&forecast_days=5&temperature_unit=celsius&timeformat=iso8601
+&wind_speed_unit=kmh&precipitation_unit=mm
 ```
 
 Exemplo resumido de resposta; metadados adicionais foram omitidos:
@@ -254,6 +259,9 @@ Exemplo resumido de resposta; metadados adicionais foram omitidos:
     "temperature_2m": "°C",
     "apparent_temperature": "°C",
     "relative_humidity_2m": "%",
+    "wind_speed_10m": "km/h",
+    "precipitation": "mm",
+    "surface_pressure": "hPa",
     "weather_code": "wmo code"
   },
   "current": {
@@ -261,6 +269,9 @@ Exemplo resumido de resposta; metadados adicionais foram omitidos:
     "temperature_2m": 25.2,
     "apparent_temperature": 26.1,
     "relative_humidity_2m": 64,
+    "wind_speed_10m": 12.5,
+    "precipitation": 0.2,
+    "surface_pressure": 1013.2,
     "weather_code": 3
   },
   "daily_units": {
@@ -287,6 +298,9 @@ Exemplo resumido de resposta; metadados adicionais foram omitidos:
 | `current.temperature_2m` | `CurrentWeather.temperatureC`. |
 | `current.apparent_temperature` | `CurrentWeather.apparentTemperatureC`. |
 | `current.relative_humidity_2m` | `CurrentWeather.relativeHumidityPercent`. |
+| `current.wind_speed_10m` | `CurrentWeather.windSpeedKmh`, em km/h. |
+| `current.precipitation` | `CurrentWeather.precipitationMm`, acumulado no intervalo atual em mm. |
+| `current.surface_pressure` | `CurrentWeather.surfacePressureHpa`, em hPa. |
 | `current.weather_code` | `CurrentWeather.weatherCode`. |
 | `daily.time[i]` | `ForecastDay.date`. |
 | `daily.temperature_2m_min[i]` | `ForecastDay.minTemperatureC`. |
@@ -316,7 +330,22 @@ Exemplo resumido de resposta; metadados adicionais foram omitidos:
 
 ## State Management
 
+`App` consome `useWeather` para status, dados, erros, busca e retry, iniciando
+em `idle`. O mock e o seletor de estados não participam da tela real.
+A unidade é estado React local independente do hook, sem persistência e sem
+requisições ao alternar. `CurrentWeather` e `ForecastDayCard` recebem essa
+unidade e convertem temperaturas somente na renderização.
+`ForecastList` preserva a ordem e as cinco datas ISO locais; rótulos são
+formatados com fuso UTC explícito para não deslocar uma data sem horário.
+O bootstrap importa Tailwind global e monta `App`. `ErrorState` recebe a
+mensagem do hook e chama `retry`; o foco passa ao conteúdo principal para não
+se perder quando o botão sai da tela. Os dados só são renderizados em
+`success` com snapshot disponível. A lista de seleção de cidades permanece
+para etapa posterior.
+
 Estado local React encapsulado em `useWeather`; sem store global porque a tela e a preferência são de escopo único. Separar o termo de busca, resultados, cidade selecionada, dados meteorológicos e unidade impede confundir o resultado da busca com o clima atualmente selecionado.
+
+O contrato público inicial do hook expõe `status` (`idle | loading | success | error | empty`), `data: WeatherData | null`, `cities: City[]`, `error: string | null`, `query: string` e ações assíncronas `search(name)`, `selectCity(city)` e `retry()`. O status agrega busca e forecast, permanecendo `loading` até o clima resolver. Cada nova operação remove dados e erros anteriores; nova busca limpa também a lista. `retry()` repete a última chamada de serviço: geocoding se a busca falhou, forecast da cidade se essa etapa já iniciou. Sem operação anterior, não faz nada. Busca vazia expõe erro de validação sem rede. A unidade continua na UI neste incremento; os estados separados do modelo acima ficam para evolução posterior.
 
 - Unidade inicial: Celsius em cada carga da página; sem `localStorage`, cookies ou persistência.
 - A seleção da unidade é independente dos dados e não inicia nova consulta.
@@ -328,7 +357,7 @@ Estado local React encapsulado em `useWeather`; sem store global porque a tela e
 
 - **Validação local:** busca vazia ou apenas espaços mostra erro junto ao campo; não chama a API.
 - **Loading:** indicar imediatamente e por texto qual operação está em curso (busca ou consulta meteorológica).
-- **Timeout:** limitar cada solicitação a 10 segundos; finalizar loading, identificar timeout e oferecer nova tentativa da mesma operação.
+- **Timeout:** limitar cada solicitação a 10 segundos com `fetchWithTimeout` e `AbortController`, limpando o temporizador em `finally`; converter `AbortError` em `WeatherServiceError` com categoria `timeout` e mensagem “A requisição demorou demais.”. Falhas de rede usam categoria `network` e mensagem “Falha de rede.”. Na UI, finalizar loading e oferecer nova tentativa da mesma operação.
 - **Falha de rede/API:** encerrar loading, mostrar erro correspondente à operação e permitir retry quando aplicável. Não capturar falhas silenciosamente.
 - **Resposta inválida:** tratar ausência de identidade da cidade, fuso horário, período ou estrutura utilizável como falha; não renderizar valores inválidos.
 - **Resposta parcial:** manter os dados válidos e apresentar os campos ausentes como indisponíveis; nunca substituir por zero, valor antigo ou inventado.

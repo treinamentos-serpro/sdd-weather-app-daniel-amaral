@@ -16,13 +16,23 @@ O Weather App permite que pessoas consultem as condições meteorológicas de um
 - “Hoje” e as datas da previsão são determinados pelo fuso horário da cidade selecionada.
 - “Próximos 5 dias” significa a data local de hoje e as quatro datas de calendário seguintes, inclusive.
 - A consulta atual mínima contém temperatura, sensação térmica, umidade relativa em porcentagem e condição meteorológica, apresentada em português do Brasil.
+- O hero de clima atual também apresenta vento em km/h, precipitação acumulada no intervalo atual em mm (não probabilidade) e pressão à superfície em hPa. Métricas ausentes são identificadas como indisponíveis; alternar °C/°F altera somente temperaturas.
 - Cada dia da previsão contém temperaturas mínima e máxima, condição meteorológica e probabilidade máxima de precipitação em porcentagem. Temperaturas são exibidas com uma casa decimal e unidade explícita.
 - “Resposta parcial” é uma resposta que identifica a cidade, o fuso horário e o período consultados, mas não contém um ou mais campos meteorológicos esperados. Uma resposta sem identidade da cidade, fuso, período ou estrutura utilizável é inválida, não parcial.
 - Uma preferência de unidade vale somente enquanto a página atual permanecer aberta. Uma nova carga da página começa em Celsius.
 
 ## Functional Requirements
 
-- **RF1 — Busca de cidades:** A pessoa usuária deve poder enviar uma busca por nome de cidade. A busca ocorre após envio explícito, preserva letras Unicode e normaliza espaços no início e no fim. Cada resultado deve mostrar nome da cidade, divisão administrativa e país quando disponíveis, e exigir seleção explícita.
+### Integração da UI com a API
+
+A tela usa `useWeather` e inicia em `idle`, sem solicitação automática.
+Busca e nova tentativa executam as ações reais do hook; os estados `loading`,
+`empty`, `error` e `success` refletem seu resultado. Não há seletor demonstrativo
+nem dados fictícios no App. A unidade permanece como estado de UI, inicia em
+Celsius e vale apenas na página. A lista para seleção de outra cidade será
+integrada em etapa posterior; este incremento carrega a primeira cidade.
+
+- **RF1 — Busca de cidades:** A pessoa usuária deve poder enviar uma busca por nome de cidade. A busca ocorre após envio explícito, preserva letras Unicode e normaliza espaços no início e no fim. Cada resultado deve mostrar nome da cidade, divisão administrativa e país quando disponíveis. A primeira cidade é selecionada automaticamente para carregar o clima; a pessoa pode selecionar outro resultado.
 - **RF2 — Clima atual:** Para a cidade selecionada, o sistema deve exibir temperatura, sensação térmica, umidade relativa e condição meteorológica em português do Brasil.
 - **RF3 — Previsão de cinco dias:** Para a cidade selecionada, o sistema deve exibir cinco datas locais consecutivas, começando por hoje, com temperaturas mínima e máxima, condição meteorológica e probabilidade máxima de precipitação.
 - **RF4 — Unidade de temperatura:** O sistema deve permitir alternar entre Celsius e Fahrenheit, atualizar todas as temperaturas visíveis e identificar a unidade em cada valor. A unidade padrão em cada carga da página é Celsius; a escolha não é persistida.
@@ -45,7 +55,7 @@ O discovery não define personas nomeadas; refere-se genericamente a usuários e
 ### US1 / RF1 — Busca de cidades
 
 - **AC1.1:** Given um termo não vazio com espaços externos, When a pessoa usuária envia a busca, Then a busca usa o termo sem os espaços externos e cada resultado mostra o nome da cidade e os campos de divisão administrativa e país que estiverem disponíveis.
-- **AC1.2:** Given resultados homônimos com campos de localização distintos, When os resultados são exibidos, Then esses campos permitem distinguir cada resultado e nenhum deles é selecionado automaticamente.
+- **AC1.2:** Given resultados homônimos com campos de localização distintos, When a busca termina, Then esses campos permitem distinguir cada resultado, o clima da primeira cidade é carregado automaticamente e outra cidade pode ser selecionada explicitamente.
 - **AC1.3:** Given resultados que ainda tenham rótulos idênticos após exibir nome, divisão administrativa e país, When a lista é exibida, Then cada resultado também mostra coordenadas suficientes para diferenciá-lo.
 - **AC1.4:** Given um campo vazio ou composto somente por espaços, When a pessoa usuária tenta enviar a busca, Then nenhuma solicitação é enviada e uma mensagem de validação é exibida junto ao campo.
 - **AC1.5:** Given um termo com acentos, hífens ou apóstrofos, When a pessoa usuária o envia, Then esses caracteres são preservados na busca e no texto exibido, sem serem interpretados como conteúdo executável.
@@ -56,6 +66,7 @@ O discovery não define personas nomeadas; refere-se genericamente a usuários e
 
 - **AC2.1:** Given uma resposta atual completa para uma cidade selecionada, When a consulta termina com sucesso, Then a interface mostra o nome da cidade, temperatura, sensação térmica, umidade relativa e condição meteorológica em português do Brasil.
 - **AC2.2:** Given que uma resposta atual pertence a uma cidade diferente da seleção vigente, When essa resposta é recebida, Then ela não é apresentada como clima da cidade selecionada.
+- **AC2.3:** Given métricas atuais disponíveis, When o hero é exibido, Then vento, precipitação e pressão à superfície mostram km/h, mm e hPa, respectivamente; campos ausentes mostram “Indisponível” e valores zero são preservados.
 
 ### US3 / RF3 — Previsão de cinco dias
 

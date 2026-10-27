@@ -100,6 +100,106 @@ Decisões-chave:
 - **Rede isolada** em `services/` — componentes e hooks não conhecem URLs.
 - Sempre tratar **loading**, **erro** e **vazio**.
 
+### Dados fictícios para desenvolver a UI
+
+O objeto `mockWeatherData` em [src/mocks/weather.ts](src/mocks/weather.ts)
+implementa o contrato `WeatherData` de
+[src/types/weather.ts](src/types/weather.ts), sem chamadas à API:
+
+```ts
+import { mockWeatherData } from './mocks/weather';
+
+const { city, current, forecast } = mockWeatherData;
+```
+
+O exemplo contém Salvador, clima atual e cinco datas locais consecutivas
+fixas (27 a 31 de outubro de 2026), no fuso `America/Bahia`. São dados
+fictícios, não uma previsão real nem datas atualizadas automaticamente.
+Temperaturas ficam em Celsius, códigos meteorológicos seguem WMO e métricas
+ausentes podem ser representadas por `null` nos tipos.
+`TemperatureUnit` e `WeatherSnapshot` são aliases de `Unit` e `WeatherData`,
+respectivamente, para compatibilidade com os nomes do plano.
+
+### Componente de busca
+
+[SearchBar](src/components/SearchBar.tsx) recebe `onSearch(city: string)` e
+`disabled` (opcional, `false` por padrão). O formulário tem `role="search"` e
+campo com label visível. Botão e Enter enviam o termo com espaços externos
+removidos; entrada vazia mostra erro acessível sem chamar `onSearch`.
+Quando `disabled` está ativo, campo, botão e envio ficam bloqueados.
+O componente não faz chamadas à API.
+
+### Controle de unidade
+
+[UnitToggle](src/components/UnitToggle.tsx) recebe `unit: Unit` e
+`onChange(unit: Unit)`. O componente é controlado: o pai atualiza `unit`
+ao receber o callback com `celsius` ou `fahrenheit`.
+Os botões °C/°F ficam em um grupo com nome acessível e indicam a seleção
+por `aria-pressed`. Use Tab/Shift+Tab para navegar e Enter/Espaço para ativar.
+O controle não consulta a API nem converte temperaturas.
+
+### Hero de clima atual
+
+[CurrentWeather](src/components/CurrentWeather.tsx) recebe `city`, `current` e
+`unit`. Exibe temperatura e sensação na unidade selecionada, condição em pt-BR
+e ícone decorativo de [weatherCodes](src/lib/weatherCodes.ts).
+[temperature](src/lib/temperature.ts) centraliza conversão e formatação com
+uma casa decimal. Umidade (%), vento (km/h), precipitação no intervalo atual
+(mm, não probabilidade) e pressão à superfície (hPa) mantêm suas unidades.
+Métricas `null` e códigos desconhecidos aparecem como “Indisponível”; zero
+continua sendo um valor válido. O componente pode receber diretamente
+`mockWeatherData.city` e `mockWeatherData.current`, sem acesso à API.
+
+### Estados de apresentação
+
+- [LoadingState](src/components/states/LoadingState.tsx): `role="status"` e
+  mensagem textual; `operation="search"` indica busca de cidades e
+  `operation="weather"` (padrão) indica consulta meteorológica. A animação
+  decorativa respeita a preferência por movimento reduzido.
+- [ErrorState](src/components/states/ErrorState.tsx): alerta com `message`
+  opcional (somente texto de apresentação, nunca corpo bruto da API).
+  Sem `message`, `kind` seleciona mensagens para `timeout`, `network` (padrão)
+  ou `invalid-response`; `operation` distingue busca de consulta (padrão).
+  Com `onRetry`, mostra o botão “Tentar novamente”; sem callback, não há botão.
+  O pai fornece um callback que repete a operação correspondente.
+- [EmptyState](src/components/states/EmptyState.tsx): região com título
+  “Nenhuma cidade encontrada” e dica para ajustar a busca, sem props.
+
+Todos são componentes de apresentação: não iniciam buscas nem acessam a API.
+
+### Aplicação integrada
+
+Execute `pnpm dev` para abrir [App](src/App.tsx), com marca, busca, controle
+de unidade, hero e previsão de cinco dias. A tela usa
+[useWeather](src/hooks/useWeather.ts) e inicia sem dados ou chamadas de rede.
+Enviar uma cidade consulta a Open-Meteo e carrega o clima do primeiro resultado.
+Carregamento, lista vazia e erro substituem os dados anteriores; “Tentar
+novamente” repete a última operação real. A lista para escolher outra cidade
+será integrada em etapa posterior. O mock é usado somente como fixture de testes.
+
+A unidade começa em Celsius e é mantida entre buscas e estados. Todas as
+temperaturas, inclusive mínima/máxima dos cinco dias, são convertidas apenas
+na renderização, sem nova chamada à API ao alternar a unidade.
+O bootstrap em [main](src/main.tsx) carrega o CSS global Tailwind.
+
+### Acessibilidade e responsividade
+
+- Busca inválida leva o foco ao campo associado à mensagem de erro.
+- Após “Tentar novamente”, o foco vai ao conteúdo principal, em vez de se
+  perder quando o botão é desmontado. O skip link também alcança esse conteúdo.
+- Botões selecionados usam `aria-pressed` e sublinhado, além da cor.
+- Mudanças para sucesso, vazio e inicial, e a unidade no sucesso, têm resumo
+  em região `aria-live="polite"`; carregamento e erro mantêm status/alerta próprios.
+- Textos longos quebram linha sem ocultar conteúdo; “Indisponível” no hero usa
+  tamanho menor. O input tem borda contrastante e os controles têm foco visível.
+
+Execute `pnpm exec playwright test tests/e2e/accessibility.spec.ts --project=chromium --workers=1`
+para verificar teclado, foco, movimento reduzido, contraste calculado e ausência
+de overflow em 320, 768, 1024 e 1440 px, incluindo texto longo e fonte a 200%.
+Os cálculos usam as cores CSS e composição conservadora das transparências,
+não substituindo avaliação visual, testes com leitor de tela ou certificação WCAG.
+Validação manual com NVDA/VoiceOver, zoom nativo e outros navegadores continua recomendada.
+
 ---
 
 ## Stack
