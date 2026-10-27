@@ -13,12 +13,20 @@ export function fahrenheitToCelsius(fahrenheit: number): number {
   return ((fahrenheit - 32) * 5) / 9;
 }
 
+export function convertTemperature(temperatureC: number, unit: Unit): number {
+  return unit === 'fahrenheit' ? celsiusToFahrenheit(temperatureC) : temperatureC;
+}
+
+export function unitLabel(unit: Unit): string {
+  return unit === 'fahrenheit' ? '°F' : '°C';
+}
+
 export function formatTemperature(temperatureC: number | null, unit: Unit): string {
   if (temperatureC === null) return 'Indisponível';
   if (!Number.isFinite(temperatureC)) {
     throw new RangeError('A temperatura deve ser um número finito ou null.');
   }
 
-  const temperature = unit === 'fahrenheit' ? celsiusToFahrenheit(temperatureC) : temperatureC;
-  return `${temperatureFormatter.format(temperature)} ${unit === 'fahrenheit' ? '°F' : '°C'}`;
+  const temperature = convertTemperature(temperatureC, unit);
+  return `${temperatureFormatter.format(temperature)} ${unitLabel(unit)}`;
 }

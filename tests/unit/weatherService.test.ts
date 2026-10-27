@@ -147,6 +147,21 @@ describe('getWeather', () => {
     ]);
   });
 
+  it('mapeia probabilidade de precipitação null para zero', async () => {
+    const body = weatherResponse();
+    mockResponse({
+      ...body,
+      daily: {
+        ...body.daily,
+        precipitation_probability_max: [null, 10, 20, 30, 80],
+      },
+    });
+
+    const weather = await getWeather(city);
+
+    expect(weather.forecast[0].precipitationProbabilityMaxPercent).toBe(0);
+  });
+
   it('mantém cinco datas consecutivas e preenche dias ausentes com null', async () => {
     mockResponse({
       timezone: 'Pacific/Kiritimati',

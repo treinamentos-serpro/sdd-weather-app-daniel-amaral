@@ -1,26 +1,23 @@
+import { getDayLabel, getShortDate } from '../lib/format';
 import { formatTemperature } from '../lib/temperature';
 import { getWeatherCondition } from '../lib/weatherCodes';
 import type { ForecastDay, Unit } from '../types/weather';
 
 interface ForecastDayCardProps {
   day: ForecastDay;
+  dayIndex: number;
   unit: Unit;
 }
 
-const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
-  weekday: 'short',
-  day: '2-digit',
-  month: '2-digit',
-  timeZone: 'UTC',
-});
-
-export default function ForecastDayCard({ day, unit }: ForecastDayCardProps) {
+export default function ForecastDayCard({ day, dayIndex, unit }: ForecastDayCardProps) {
   const condition = getWeatherCondition(day.weatherCode);
 
   return (
     <article className="h-full min-w-0 rounded-2xl border border-white/10 bg-white/5 p-4 text-white shadow-glass backdrop-blur-md [overflow-wrap:anywhere]">
       <h3 className="font-semibold">
-        <time dateTime={day.date}>{dateFormatter.format(new Date(`${day.date}T00:00:00Z`))}</time>
+        <time dateTime={day.date}>
+          {getDayLabel(dayIndex, day.date)}, {getShortDate(day.date)}
+        </time>
       </h3>
       <span aria-hidden="true" className="my-3 block text-4xl text-sun">
         {condition.icon}

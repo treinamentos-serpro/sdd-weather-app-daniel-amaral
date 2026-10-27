@@ -184,13 +184,14 @@ export async function getWeather(city: City): Promise<WeatherData> {
     day.setUTCDate(day.getUTCDate() + offset);
     const date = day.toISOString().slice(0, 10);
     const index = dates.indexOf(date);
+    const precipitationProbability = dailyValue('precipitation_probability_max', index);
     return {
       date,
       minTemperatureC: finiteNumber(dailyValue('temperature_2m_min', index)),
       maxTemperatureC: finiteNumber(dailyValue('temperature_2m_max', index)),
       weatherCode: finiteNumber(dailyValue('weather_code', index)),
       precipitationProbabilityMaxPercent: percentage(
-        dailyValue('precipitation_probability_max', index),
+        precipitationProbability === null ? 0 : precipitationProbability,
       ),
     };
   });

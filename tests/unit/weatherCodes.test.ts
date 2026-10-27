@@ -12,6 +12,10 @@ describe('weatherCodes', () => {
     expect(condition.icon.length).toBeGreaterThan(0);
   });
 
+  it('mapeia um código conhecido para o rótulo e ícone esperados', () => {
+    expect(getWeatherCondition(61)).toEqual({ label: 'Chuva leve', icon: '🌧️' });
+  });
+
   it('distingue céu limpo, nuvens, chuva e trovoada em pt-BR', () => {
     expect(getWeatherCondition(0).label).toBe('Céu limpo');
     expect(getWeatherCondition(2).label).toBe('Parcialmente nublado');

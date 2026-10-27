@@ -1,10 +1,28 @@
+import { useState } from 'react';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import CurrentWeather from '../../src/components/CurrentWeather';
+import UnitToggle from '../../src/components/UnitToggle';
 import { mockWeatherData } from '../../src/mocks/weather';
-import type { CurrentWeather as CurrentWeatherData } from '../../src/types/weather';
+import type { CurrentWeather as CurrentWeatherData, Unit } from '../../src/types/weather';
 
 const { city, current } = mockWeatherData;
+
+function WeatherWithUnitToggle() {
+  const [unit, setUnit] = useState<Unit>('celsius');
+
+  return (
+    <>
+      <UnitToggle unit={unit} onChange={setUnit} />
+      <CurrentWeather
+        city={city}
+        current={{ ...current, temperatureC: 0, apparentTemperatureC: 0 }}
+        unit={unit}
+      />
+    </>
+  );
+}
 
 describe('CurrentWeather', () => {
   it('apresenta cidade, condição, temperaturas e métricas do mock', () => {
@@ -61,6 +79,19 @@ describe('CurrentWeather', () => {
       expect(screen.getByText(value)).toBeVisible();
     }
     expect(screen.getByText('Céu limpo')).toBeVisible();
+  });
+
+  it('converte 0 °C para Fahrenheit ao selecionar °F no toggle', async () => {
+    const user = userEvent.setup();
+    render(<WeatherWithUnitToggle />);
+
+    expect(screen.getByText('0,0 °C')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: '°F' }));
+
+    expect(screen.getByRole('button', { name: '°F', pressed: true })).toBeVisible();
+    expect(screen.getByText('32,0 °F')).toBeVisible();
+    expect(screen.getByText('Sensação térmica: 32,0 °F')).toBeVisible();
+    expect(screen.queryByText('0,0 °C')).not.toBeInTheDocument();
   });
 
   it('substitui dados anteriores por indisponibilidade sem inventar métricas', () => {

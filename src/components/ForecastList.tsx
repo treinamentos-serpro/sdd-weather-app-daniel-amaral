@@ -16,9 +16,9 @@ export default function ForecastList({ forecast, unit }: ForecastListProps) {
         Previsão de 5 dias
       </h2>
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {forecast.map((day) => (
+        {forecast.map((day, index) => (
           <li key={day.date} className="min-w-0">
-            <ForecastDayCard day={day} unit={unit} />
+            <ForecastDayCard day={day} dayIndex={index} unit={unit} />
           </li>
         ))}
       </ul>

@@ -126,6 +126,9 @@ describe('App', () => {
     render(<App />);
     const user = await submitSearch();
     await screen.findByRole('region', { name: 'Salvador' });
+    const datesBeforeConversion = screen
+      .getAllByRole('article')
+      .map((card) => within(card).getByRole('heading').querySelector('time')?.getAttribute('dateTime'));
     await user.click(screen.getByRole('button', { name: '°F' }));
     expect(screen.getByText('77,7 °F')).toBeVisible();
     expect(screen.getByText('Sensação térmica: 80,8 °F')).toBeVisible();
@@ -139,9 +142,60 @@ describe('App', () => {
     }
     expect(searchCities).toHaveBeenCalledTimes(1);
     expect(getWeather).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: '°C' }));
+    expect(screen.getByText('25,4 °C')).toBeVisible();
+    expect(screen.getByText('Sensação térmica: 27,1 °C')).toBeVisible();
+    for (const [index, day] of mockWeatherData.forecast.entries()) {
+      const card = within(screen.getAllByRole('article')[index]);
+      expect(card.getByText(formatTemperature(day.minTemperatureC, 'celsius'))).toBeVisible();
+      expect(card.getByText(formatTemperature(day.maxTemperatureC, 'celsius'))).toBeVisible();
+    }
+    expect(
+      screen
+        .getAllByRole('article')
+        .map((card) =>
+          within(card).getByRole('heading').querySelector('time')?.getAttribute('dateTime'),
+        ),
+    ).toEqual(datesBeforeConversion);
+    expect(searchCities).toHaveBeenCalledTimes(1);
+    expect(getWeather).toHaveBeenCalledTimes(1);
+
     await submitSearch('Outra cidade');
     await screen.findByRole('region', { name: 'Salvador' });
-    expect(screen.getByText('77,7 °F')).toBeVisible();
+    expect(screen.getByText('25,4 °C')).toBeVisible();
+  });
+
+  it('mantém métricas válidas e marca campos ausentes como indisponíveis', async () => {
+    const partialData: WeatherData = {
+      ...mockWeatherData,
+      current: {
+        ...mockWeatherData.current,
+        apparentTemperatureC: null,
+        precipitationMm: null,
+      },
+      forecast: mockWeatherData.forecast.map((day, index) =>
+        index === 0 ? { ...day, minTemperatureC: null } : day,
+      ),
+    };
+    vi.mocked(getWeather).mockResolvedValue(partialData);
+    render(<App />);
+
+    await submitSearch();
+
+    const currentWeather = await screen.findByRole('region', { name: 'Salvador' });
+    expect(within(currentWeather).getByText('25,4 °C')).toBeVisible();
+    expect(within(currentWeather).getByText('Sensação térmica: Indisponível')).toBeVisible();
+    expect(within(currentWeather).getByText('68 %')).toBeVisible();
+    expect(
+      within(currentWeather).getByText('Precipitação', { selector: 'dt' }).nextElementSibling,
+    ).toHaveTextContent('Indisponível');
+
+    const firstForecastDay = within(screen.getAllByRole('article')[0]);
+    expect(firstForecastDay.getByText('Máxima').nextElementSibling).toHaveTextContent('27,5 °C');
+    expect(firstForecastDay.getByText('Mínima').nextElementSibling).toHaveTextContent(
+      'Indisponível',
+    );
   });
 
   it('permite trocar unidade durante loading e aplica a unidade vigente ao receber dados', async () => {
